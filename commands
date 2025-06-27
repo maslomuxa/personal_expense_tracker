@@ -1,0 +1,5 @@
+cursor.execute('DELETE FROM expenses WHERE category = ?', ('food',))
+
+cursor.execute('INSERT INTO expenses (date, category, amount) VALUES (?, ?, ?)',("12.10.2025", "food", 10000))
+
+cursor.execute('SELECT * FROM expenses WHERE date > ? ORDER BY date', ("2025-06-01",))
