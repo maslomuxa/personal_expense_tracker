@@ -73,8 +73,9 @@ async def amount_input_handler(message: Message, state: FSMContext):
         user_data = await state.get_data()
         date = user_data["date"]
         category = user_data["category"]
+        user_id = message.from_user.id
 
-        cursor.execute('INSERT INTO expenses (date, category, amount) VALUES (?, ?, ?)', (date, category, amount))
+        cursor.execute('INSERT INTO expenses (user_id, date, category, amount) VALUES (?, ?, ?, ?)', (user_id, date, category, amount))
         conn.commit()
 
         await message.answer(f"Расход успешно добавлен! \nДата: {date} \nКатегория: {category} \nСумма: {amount}")
@@ -87,11 +88,15 @@ async def amount_input_handler(message: Message, state: FSMContext):
 
 @dp.message(Command('show_expenses'))
 async def show_expenses_handler(message: Message, state: FSMContext):
-    cursor.execute('SELECT * FROM expenses ORDER BY date')
+    summ = 0
+    user_id = message.from_user.id
+    cursor.execute('SELECT * FROM expenses WHERE user_id = ? ORDER BY date', (user_id, ))
     expenses = cursor.fetchall()
     response = "Ваши расходы: \n\n"
     for expense in expenses:
-        response += f"Дата: {expense[1]} \nКатегория: {expense[2]} \nСумма: {expense[3]}\n\n"
+        response += f"Дата: {expense[2]} \nКатегория: {expense[3]} \nСумма: {expense[4]}\n\n"
+        summ += expense[4]
+    response += f'Общая сумма расходов: {summ}\n'
     await message.answer(response)
 
 
@@ -100,12 +105,6 @@ async def show_expenses_handler(message: Message, state: FSMContext):
 
 
 
-def view_expenses():
-    cursor.execute('SELECT * FROM expenses WHERE date < ? AND date >= ? ORDER BY date', ("2025-06-01", "2025-05-01"))
-    expenses = cursor.fetchall()
-
-    for expense in expenses:
-        print(expense)
 
 def view_expense_by_period():
     print()
@@ -133,12 +132,13 @@ def view_expense_by_category():
 
 async def main() -> None:
     global conn, cursor
-    conn = sqlite3.connect('expenses.db')
+    conn = sqlite3.connect('expenses2.db')
     cursor = conn.cursor()
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS expenses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     date TEXT NOT NULL,
     category TEXT NOT NULL,
     amount REAL NOT NULL)
