@@ -2,18 +2,34 @@ import sqlite3
 import asyncio
 import logging
 import sys
+from datetime import date
 
-
-from aiogram import Bot, Dispatcher, html
+from aiogram import Bot, Dispatcher, html, F
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 TOKEN = "7589991747:AAF7n9YULutwvM4_D9z88-LT0yRlOhpCECQ"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+
+
+this_month_btn = InlineKeyboardButton(text="за этот месяц", callback_data="this_month")
+this_year_btn = InlineKeyboardButton(text="за этот год", callback_data="this_year")
+all_time_btn = InlineKeyboardButton(text="за все время", callback_data="all_time")
+show_expenses_kbd = InlineKeyboardMarkup(inline_keyboard=[
+    [this_month_btn, this_year_btn],
+    [all_time_btn],
+])
+
+
+today_btn = InlineKeyboardButton(text="сегодня", callback_data="date_today")
+other_day_btn = InlineKeyboardButton(text="ввести вручную", callback_data="date_custom")
+add_date_kbd = InlineKeyboardMarkup(inline_keyboard=[
+    [today_btn, other_day_btn],
+])
 
 
 class ExpenseState(StatesGroup):
@@ -35,7 +51,6 @@ async def command_start_handler(message: Message) -> None:
 
 
 
-
 @dp.message(Command('help'))
 async def command_help_handler(message: Message):
     await message.answer('''
@@ -48,8 +63,26 @@ async def command_help_handler(message: Message):
 
 @dp.message(Command('add_expense'))
 async def command_add_expense_handler(message: Message, state: FSMContext):
-    await message.answer("Введите дату расхода (ГГГГ-ММ-ДД): ")
+    await message.answer(text="Выберите дату расхода: ", reply_markup=add_date_kbd)
+
+
+
+@dp.callback_query(F.data == 'date_today')
+async def date_today_handler(callback: CallbackQuery, state: FSMContext):
+    today = date.today()
+    await state.update_data(date=today)
+    await callback.message.answer("Введите категорию расхода: ")
+    await state.set_state(ExpenseState.category)
+    await callback.answer()
+
+
+
+@dp.callback_query(F.data == 'date_custom')
+async def date_custom_handler(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("Введите дату расхода (ГГГГ-ММ-ДД): ")
     await state.set_state(ExpenseState.date)
+    await callback.answer()
+
 
 
 @dp.message(ExpenseState.date)
@@ -88,8 +121,55 @@ async def amount_input_handler(message: Message, state: FSMContext):
 
 @dp.message(Command('show_expenses'))
 async def show_expenses_handler(message: Message, state: FSMContext):
+    await message.answer(text="выберите период расходов: ", reply_markup=show_expenses_kbd)
+
+
+@dp.callback_query(F.data == 'this_month')
+async def this_month_handler(callback: CallbackQuery):
     summ = 0
-    user_id = message.from_user.id
+    user_id = callback.from_user.id
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    cursor.execute('SELECT * FROM expenses '
+                   'WHERE user_id = ? AND date >= ? AND date <= ?'
+                   'ORDER BY date',
+                   (user_id, month_start, today))
+    expenses = cursor.fetchall()
+    response = "Ваши расходы: \n\n"
+    for expense in expenses:
+        response += f"Дата: {expense[2]} \nКатегория: {expense[3]} \nСумма: {expense[4]}\n\n"
+        summ += expense[4]
+    response += f'Общая сумма расходов: {summ}\n'
+    await callback.message.edit_text(response)
+
+
+
+@dp.callback_query(F.data == 'this_year')
+async def this_year_handler(callback: CallbackQuery):
+    summ = 0
+    user_id = callback.from_user.id
+    today = date.today()
+    year_start = today.replace(day=1, month=1)
+    cursor.execute('SELECT * FROM expenses '
+                   'WHERE user_id = ? AND date >= ? AND date <= ?'
+                   'ORDER BY date',
+                   (user_id, year_start, today))
+    expenses = cursor.fetchall()
+    response = "Ваши расходы: \n\n"
+    for expense in expenses:
+        response += f"Дата: {expense[2]} \nКатегория: {expense[3]} \nСумма: {expense[4]}\n\n"
+        summ += expense[4]
+    response += f'Общая сумма расходов: {summ}\n'
+    await callback.message.edit_text(response)
+
+
+
+@dp.callback_query(F.data == 'all_time')
+async def all_time_handler(callback: CallbackQuery):
+
+    summ = 0
+    user_id = callback.from_user.id
     cursor.execute('SELECT * FROM expenses WHERE user_id = ? ORDER BY date', (user_id, ))
     expenses = cursor.fetchall()
     response = "Ваши расходы: \n\n"
@@ -97,7 +177,7 @@ async def show_expenses_handler(message: Message, state: FSMContext):
         response += f"Дата: {expense[2]} \nКатегория: {expense[3]} \nСумма: {expense[4]}\n\n"
         summ += expense[4]
     response += f'Общая сумма расходов: {summ}\n'
-    await message.answer(response)
+    await callback.message.edit_text(response)
 
 
 
