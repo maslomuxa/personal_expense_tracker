@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-TOKEN = "7589991747:AAF7n9YULutwvM4_D9z88-LT0yRlOhpCECQ"
+TOKEN = ""
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
